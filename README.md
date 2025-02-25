@@ -22,6 +22,11 @@ The following parameters are required:
 - Host: IP address or hostname of the TerraMow device
 - Password: MQTT password
 
+## Requirements
+
+- Firmware version 6.6.0 or later is required.
+- APP version 1.6.0 or later is required to change Home Assistant related configurations.
+
 ## Support
 
 Open an issue on GitHub for support.
