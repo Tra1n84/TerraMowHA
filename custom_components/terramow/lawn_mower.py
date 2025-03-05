@@ -127,7 +127,41 @@ class TerraMowLawnMowerEntity(LawnMowerEntity):
 
         self.cmd_seq = random.randint(0, 0xFFFFFFFF)  # 生成随机的指令序号
 
+        self._last_control_time = time.monotonic()
+        self._control_interval = 1.0 # 控制间隔时间
+
         _LOGGER.info("TerraMowLawnMowerEntity created with host %s", self.host)
+
+    def _can_accept_command(self):
+        """Check if control commands can be accepted"""
+        now = time.monotonic()
+        if now - self._last_control_time < self._control_interval:
+            _LOGGER.info("Request too quick, skip it")
+            return False
+        self._last_control_time = now
+        return True
+
+    def _get_mow_missions(self):
+        """Get the list of mowing missions"""
+        return [
+            Mission.MISSION_GLOBAL_CLEAN,
+            Mission.MISSION_BUILD_MAP,
+            Mission.MISSION_BUILD_MAP_AND_CLEAN,
+            Mission.MISSION_TEMPORARY_CLEAN,
+            Mission.MISSION_SELECT_REGION_CLEAN,
+            Mission.MISSION_DRAW_REGION_CLEAN,
+            Mission.MISSION_EDGE_TRIM_CLEAN,
+            Mission.MISSION_SCHEDULE_GLOBAL_CLEAN,
+            Mission.MISSION_SCHEDULE_BUILD_MAP_AND_CLEAN,
+            Mission.MISSION_SCHEDULE_SELECT_REGION_CLEAN
+        ]
+
+    def _get_recharge_missions(self):
+        """Get the list of recharging missions"""
+        return [
+            Mission.MISSION_RECHARGE,
+            Mission.MISSION_BACK_TO_STARTING_POINT
+        ]
 
     @property
     def unique_id(self):
@@ -177,39 +211,29 @@ class TerraMowLawnMowerEntity(LawnMowerEntity):
         self.register_callback(108, self.on_battery_status)
 
     def update_activity_from_state(self):
-        """根据当前任务状态更新activity."""
+        """Update activity based on current mission state."""
         last_activity = self.activity
 
         if self.has_error:
             self.activity = LawnMowerActivity.ERROR
-            return
-
-        # 检查是否在充电
-        if self.sub_mission == SubMission.SUB_MISSION_CHARGING:
-            self.activity = LawnMowerActivity.DOCKED
-            return
-
-        # 检查是否在工作
-        if (self.mission_state == MissionState.MISSION_STATE_RUNNING and 
-            self.mission in [Mission.MISSION_GLOBAL_CLEAN, 
-                            Mission.MISSION_EDGE_TRIM_CLEAN,
-                            Mission.MISSION_SELECT_REGION_CLEAN]):
-            self.activity = LawnMowerActivity.MOWING
-            return
-
-        # 检查是否暂停
-        if self.mission_state == MissionState.MISSION_STATE_PAUSE:
+        elif self.mission_state == MissionState.MISSION_STATE_RUNNING:
+            if self.mission in self._get_mow_missions():
+                if self.sub_mission == SubMission.SUB_MISSION_FLEXIBLE_STATION_WAIT:
+                    # 基站中等待，等效于暂停
+                    self.activity = LawnMowerActivity.PAUSED
+                elif self.sub_mission == SubMission.SUB_MISSION_SAVING_MAP:
+                    # 正在保存地图，等效于结束
+                    self.activity = LawnMowerActivity.DOCKED
+                else:
+                    self.activity = LawnMowerActivity.MOWING
+            elif self.mission in self._get_recharge_missions():
+                self.activity = LawnMowerActivity.RETURNING
+            else:
+                self.activity = LawnMowerActivity.DOCKED
+        elif self.mission_state == MissionState.MISSION_STATE_PAUSE:
             self.activity = LawnMowerActivity.PAUSED
-            return
-
-        # 检查是否正在返回充电
-        if (self.sub_mission == SubMission.SUB_MISSION_RETURN_TO_BASE or
-            self.mission == Mission.MISSION_RECHARGE):
-            self.activity = LawnMowerActivity.DOCKING
-            return
-
-        # 默认状态
-        self.activity = LawnMowerActivity.DOCKED
+        else:
+            self.activity = LawnMowerActivity.DOCKED
 
         if last_activity != self.activity:
             self.schedule_update_ha_state()
@@ -343,27 +367,94 @@ class TerraMowLawnMowerEntity(LawnMowerEntity):
         return self.cmd_seq
 
     def start_mowing(self):
+        """Start mowing implementation for lawn_mower entity."""
+        if not self._can_accept_command():
+            logging.warning("Request too quick, skip start mowing command")
+            return
+
+        if self.mission in self._get_mow_missions():
+            if self.sub_mission == SubMission.SUB_MISSION_FLEXIBLE_STATION_WAIT:
+                _LOGGER.info("SubMissionWaitInStation resume mow")
+                self._resume_mow()
+            else:
+                if self.mission_state == MissionState.MISSION_STATE_RUNNING:
+                    _LOGGER.info("Now is mowing, can not start mow again")
+                elif self.mission_state == MissionState.MISSION_STATE_PAUSE:
+                    _LOGGER.info("Mission paused, resume mow")
+                    self._resume_mow()
+        else:
+            _LOGGER.info("START CLEAN : Sending start command")
+            self._start_normal_mow()
+
+    def pause(self):
+        """Pause mowing implementation for lawn_mower entity."""
+        if not self._can_accept_command():
+            logging.warning("Request too quick, skip pause command")
+            return
+
+        if self.mission in self._get_mow_missions():
+            if self.sub_mission == SubMission.SUB_MISSION_FLEXIBLE_STATION_WAIT:
+                _LOGGER.info("SubMissionWaitInStation, now is not ok to pause mow")
+            else:
+                if self.mission_state == MissionState.MISSION_STATE_RUNNING:
+                    _LOGGER.info("PAUSE CLEAN : Sending pause command")
+                    self._send_pause_command()
+                elif self.mission_state == MissionState.MISSION_STATE_PAUSE:
+                    _LOGGER.info("Now is paused, can not pause mow again")
+        else:
+            if self.mission_state == MissionState.MISSION_STATE_RUNNING:
+                _LOGGER.info("PAUSE CLEAN : Sending pause command")
+                self._send_pause_command()
+            elif self.mission_state == MissionState.MISSION_STATE_PAUSE:
+                _LOGGER.info("Now is paused, can not pause mow again")
+
+    def dock(self):
+        """Docking implementation for lawn_mower entity."""
+        if not self._can_accept_command():
+            logging.warning("Request too quick, skip dock command")
+            return
+
+        if self.mission in self._get_recharge_missions():
+            if self.mission_state == MissionState.MISSION_STATE_RUNNING:
+                _LOGGER.info("Now is not ok to start recharge")
+            elif self.mission_state == MissionState.MISSION_STATE_PAUSE:
+                _LOGGER.info("ResumeRecharge : Resuming recharge")
+                self._resume_recharge()
+        else:
+            _LOGGER.info("StartRecharge : Sending recharge command")
+            self._start_normal_recharge()
+
+    def _start_normal_mow(self):
+        """Start normal mowing"""
         command = {
             'seq': self.get_cmd_seq(),
             'mode': 'START_MODE_GLOBAL_CLEAN',
-            'global_clean': {
-                'restart': False
-            }
+            'global_clean': {'restart': False}
         }
         self.publish_data_point(103, command)
 
-    def pause(self):
-        command = {
-            'seq': self.get_cmd_seq()
-        }
+    def _resume_mow(self):
+        """Resume mowing"""
+        command = {'seq': self.get_cmd_seq()}
+        self.publish_data_point(106, command)
+
+    def _send_pause_command(self):
+        """Send pause command"""
+        command = {'seq': self.get_cmd_seq()}
         self.publish_data_point(105, command)
 
-    def dock(self):
+    def _start_normal_recharge(self):
+        """Start normal recharging"""
         command = {
             'seq': self.get_cmd_seq(),
-            'mode': 'START_MODE_RETURN',
+            'mode': 'START_MODE_RETURN'
         }
         self.publish_data_point(103, command)
+
+    def _resume_recharge(self):
+        """Resume recharging"""
+        # 继续回充等效于继续割草
+        return self._resume_mow();
 
     async def async_will_remove_from_hass(self):
         """Clean up resources when the entity is removed."""
