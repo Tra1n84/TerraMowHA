@@ -8,7 +8,8 @@ from typing import Any
 import paho.mqtt.client as mqtt_client
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import ConfigFlow
+# 移除 ConfigFlowResult 导入
 from homeassistant.const import CONF_HOST, CONF_PASSWORD
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
@@ -57,7 +58,7 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    ):  # 移除返回值类型注解
         """Handle the initial step."""
         errors: dict[str, str] = {}
         if user_input is not None:

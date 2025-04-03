@@ -24,6 +24,7 @@ The following parameters are required:
 
 ## Requirements
 
+- Home Assistant 2023.9.3 or later (properly tested with 2025.1.1)
 - Firmware version 6.6.0 or later is required.
 - APP version 1.6.0 or later is required to change Home Assistant related configurations.
 

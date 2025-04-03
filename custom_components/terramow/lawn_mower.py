@@ -12,7 +12,7 @@ from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import TerraMowConfigEntry, TerraMowBasicData
-from .const import MQTT_PORT, MQTT_USERNAME
+from .const import MQTT_PORT, MQTT_USERNAME, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -85,8 +85,11 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the TerraMow entity."""
+    # 从 hass.data 获取数据而不是 config_entry.runtime_data
+    basic_data = hass.data[DOMAIN][config_entry.entry_id]
+    
     # 创建实体
-    entity = TerraMowLawnMowerEntity(config_entry.runtime_data, hass)
+    entity = TerraMowLawnMowerEntity(basic_data, hass)
 
     # 添加实体
     async_add_entities([entity])
@@ -129,6 +132,10 @@ class TerraMowLawnMowerEntity(LawnMowerEntity):
 
         self._last_control_time = time.monotonic()
         self._control_interval = 1.0 # 控制间隔时间
+
+        self._has_returning = hasattr(LawnMowerActivity, 'RETURNING')
+        if not self._has_returning:
+            _LOGGER.info("LawnMowerActivity.RETURNING not available in this HA version")
 
         _LOGGER.info("TerraMowLawnMowerEntity created with host %s", self.host)
 
@@ -227,7 +234,11 @@ class TerraMowLawnMowerEntity(LawnMowerEntity):
                 else:
                     self.activity = LawnMowerActivity.MOWING
             elif self.mission in self._get_recharge_missions():
-                self.activity = LawnMowerActivity.RETURNING
+                if self._has_returning:
+                    self.activity = LawnMowerActivity.RETURNING
+                else:
+                    # 旧版本的HA没有RETURNING状态，使用DOCKED替代
+                    self.activity = LawnMowerActivity.DOCKED
             else:
                 self.activity = LawnMowerActivity.DOCKED
         elif self.mission_state == MissionState.MISSION_STATE_PAUSE:
