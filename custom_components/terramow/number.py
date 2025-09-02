@@ -139,8 +139,8 @@ class EdgeCuttingDistanceNumber(TerraMowNumberBase):
     _attr_entity_category = EntityCategory.CONFIG
     _attr_translation_key = "edge_cutting_distance"
     _attr_mode = NumberMode.BOX
-    _attr_native_min_value = 0
-    _attr_native_max_value = 50
+    _attr_native_min_value = -150
+    _attr_native_max_value = 150
     _attr_native_step = 1
     
     def __init__(
