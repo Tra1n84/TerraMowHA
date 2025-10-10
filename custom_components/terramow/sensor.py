@@ -73,7 +73,7 @@ class BatterySensor(SensorEntity):
         self.hass = hass
         self._attr_native_value: int | None = None  # 初始化电池电量值
         self.basic_data.lawn_mower.register_callback(8, self.set_capacity)
-        self.basic_data.lawn_mower.register_callback(108, self.set_battery_attributes)
+        # self.basic_data.lawn_mower.register_callback(108, self.set_battery_attributes) # This is now handled by the lawn_mower entity
 
         _LOGGER.info("BatterySensor entity created")
 
@@ -81,12 +81,10 @@ class BatterySensor(SensorEntity):
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
         return DeviceInfo(
-            identifiers={
-                ('TerraMowLanwMower', self.basic_data.host)
-            },
+            identifiers={('TerraMowLawnMower', self.basic_data.host)}, # Corrected typo in identifier
             name='TerraMow',
             manufacturer='TerraMow',
-            model='TerraMow S1200'
+            model=self.basic_data.lawn_mower._device_model # Use dynamically updated model
         )
 
     @property
@@ -94,22 +92,6 @@ class BatterySensor(SensorEntity):
         """Return a unique ID for this entity."""
         return f"lawn_mower.terramow@{self.host}.battery"
 
-
-    def set_battery_attributes(self, payload :str) -> None:
-        """Handle battery status attributes updates."""
-        try:
-            data = json.loads(payload)
-            self._attr_extra_state_attributes = {
-                'state':  data.get('state', ''),
-                'temperature':  data.get('tempreture', '').replace('TEMPRETURE', 'TEMPERATURE'),
-                'charger_connected':  data.get('charger_connected', ''),
-                'is_switch_on':  data.get('is_switch_on', '')
-            }
-            _LOGGER.info(f"Received battery loading status: {data}")
-
-        except json.JSONDecodeError:
-            _LOGGER.error(f"Invalid JSON payload: {payload}")
-            return
 
     def set_capacity(self, payload :str) -> None:
         """Handle battery capacity status updates."""
@@ -126,6 +108,23 @@ class BatterySensor(SensorEntity):
     def native_value(self) -> int | None:
         """Return value of sensor."""
         return self._attr_native_value
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return entity specific state attributes."""
+        if not hasattr(self.basic_data, 'lawn_mower') or not self.basic_data.lawn_mower:
+            return {}
+
+        battery_status = self.basic_data.lawn_mower.battery_status
+        if not battery_status:
+            return {}
+
+        return {
+            'state': battery_status.get('state', 'unknown'),
+            'temperature': battery_status.get('tempreture', 'unknown').replace('TEMPRETURE', 'TEMPERATURE'),
+            'charger_connected': battery_status.get('charger_connected', 'unknown'),
+            'is_switch_on': battery_status.get('is_switch_on', 'unknown')
+        }
 
 
 class TotalMowingTimeSensor(SensorEntity):
@@ -153,12 +152,10 @@ class TotalMowingTimeSensor(SensorEntity):
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
         return DeviceInfo(
-            identifiers={
-                ('TerraMowLanwMower', self.basic_data.host)
-            },
+            identifiers={('TerraMowLawnMower', self.basic_data.host)}, # Corrected typo in identifier
             name='TerraMow',
             manufacturer='TerraMow',
-            model='TerraMow S1200'
+            model=self.basic_data.lawn_mower._device_model # Use dynamically updated model
         )
     
     @property
@@ -204,12 +201,10 @@ class CurrentSessionAreaSensor(SensorEntity):
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
         return DeviceInfo(
-            identifiers={
-                ('TerraMowLanwMower', self.basic_data.host)
-            },
+            identifiers={('TerraMowLawnMower', self.basic_data.host)}, # Corrected typo in identifier
             name='TerraMow',
             manufacturer='TerraMow',
-            model='TerraMow S1200'
+            model=self.basic_data.lawn_mower._device_model # Use dynamically updated model
         )
     
     @property
@@ -282,12 +277,10 @@ class CurrentSessionTimeSensor(SensorEntity):
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
         return DeviceInfo(
-            identifiers={
-                ('TerraMowLanwMower', self.basic_data.host)
-            },
+            identifiers={('TerraMowLawnMower', self.basic_data.host)}, # Corrected typo in identifier
             name='TerraMow',
             manufacturer='TerraMow',
-            model='TerraMow S1200'
+            model=self.basic_data.lawn_mower._device_model # Use dynamically updated model
         )
     
     @property
@@ -333,12 +326,10 @@ class RemainingBladeTimeSensor(SensorEntity):
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
         return DeviceInfo(
-            identifiers={
-                ('TerraMowLanwMower', self.basic_data.host)
-            },
+            identifiers={('TerraMowLawnMower', self.basic_data.host)}, # Corrected typo in identifier
             name='TerraMow',
             manufacturer='TerraMow',
-            model='TerraMow S1200'
+            model=self.basic_data.lawn_mower._device_model # Use dynamically updated model
         )
     
     @property
@@ -405,12 +396,10 @@ class RemainingBaseStationTimeSensor(SensorEntity):
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
         return DeviceInfo(
-            identifiers={
-                ('TerraMowLanwMower', self.basic_data.host)
-            },
+            identifiers={('TerraMowLawnMower', self.basic_data.host)}, # Corrected typo in identifier
             name='TerraMow',
             manufacturer='TerraMow',
-            model='TerraMow S1200'
+            model=self.basic_data.lawn_mower._device_model # Use dynamically updated model
         )
     
     @property
@@ -477,12 +466,10 @@ class TerraMowMowHeightSensor(SensorEntity):
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
         return DeviceInfo(
-            identifiers={
-                ('TerraMowLanwMower', self.basic_data.host)
-            },
+            identifiers={('TerraMowLawnMower', self.basic_data.host)}, # Corrected typo in identifier
             name='TerraMow',
             manufacturer='TerraMow',
-            model='TerraMow S1200'
+            model=self.basic_data.lawn_mower._device_model # Use dynamically updated model
         )
     
     @property
@@ -528,12 +515,10 @@ class TerraMowMowSpeedSensor(SensorEntity):
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
         return DeviceInfo(
-            identifiers={
-                ('TerraMowLanwMower', self.basic_data.host)
-            },
+            identifiers={('TerraMowLawnMower', self.basic_data.host)}, # Corrected typo in identifier
             name='TerraMow',
             manufacturer='TerraMow',
-            model='TerraMow S1200'
+            model=self.basic_data.lawn_mower._device_model # Use dynamically updated model
         )
     
     @property
@@ -608,12 +593,10 @@ class NextScheduledStartSensor(SensorEntity):
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
         return DeviceInfo(
-            identifiers={
-                ('TerraMowLanwMower', self.basic_data.host)
-            },
+            identifiers={('TerraMowLawnMower', self.basic_data.host)}, # Corrected typo in identifier
             name='TerraMow',
             manufacturer='TerraMow',
-            model='TerraMow S1200'
+            model=self.basic_data.lawn_mower._device_model # Use dynamically updated model
         )
     
     @property
@@ -692,12 +675,10 @@ class VersionCompatibilitySensor(SensorEntity):
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
         return DeviceInfo(
-            identifiers={
-                ('TerraMowLanwMower', self.basic_data.host)
-            },
+            identifiers={('TerraMowLawnMower', self.basic_data.host)}, # Corrected typo in identifier
             name='TerraMow',
             manufacturer='TerraMow',
-            model='TerraMow S1200'
+            model=self.basic_data.lawn_mower._device_model # Use dynamically updated model
         )
 
     @property
@@ -811,12 +792,10 @@ class MainDirectionStatusSensor(SensorEntity):
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
         return DeviceInfo(
-            identifiers={
-                ('TerraMowLanwMower', self.basic_data.host)
-            },
+            identifiers={('TerraMowLawnMower', self.basic_data.host)}, # Corrected typo in identifier
             name='TerraMow',
             manufacturer='TerraMow',
-            model='TerraMow S1200'
+            model=self.basic_data.lawn_mower._device_model # Use dynamically updated model
         )
     
     @property
