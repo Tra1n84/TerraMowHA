@@ -98,6 +98,11 @@
                 }
             }
         },
+        "binary_sensor": {
+            "charging_state": {
+                "name": "充电状态"
+            }
+        },
         "select": {
             "region_select": {
                 "name": "分区选择"

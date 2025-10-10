@@ -120,7 +120,7 @@ class TerraMowLawnMowerEntity(LawnMowerEntity):
         self._activity = LawnMowerActivity.DOCKED  # 默认状态
         self.mqtt_client = None
         self._stop_event = threading.Event()  # 用于停止重连循环
-        self.callbacks: dict[int, Callable] = {}  # 存储 dp_id 和对应的回调函数
+        self.callbacks: dict[int, list[Callable]] = {}  # 存储 dp_id 和对应的回调函数列表
         self.map_callbacks: list[Callable] = []  # 存储地图信息回调函数
         self._map_info: dict[str, Any] = {}  # 存储当前地图信息
         self._global_params: dict[str, Any] = {}  # 存储dp_155全局作业参数
@@ -130,6 +130,7 @@ class TerraMowLawnMowerEntity(LawnMowerEntity):
         self._base_station_time: dict[str, Any] = {}  # 存储dp_125基站使用时间
         self._blade_time: dict[str, Any] = {}  # 存储dp_126刀盘使用时间
         self._schedule_data: dict[str, Any] = {}  # 存储dp_138即将到来的预约
+        self._battery_status: dict[str, Any] = {} # Store dp_108 battery status
         self._device_model: str = "TerraMow S1200"  # 默认型号名称，保持向后兼容
         self.basic_data.lawn_mower = self
 
@@ -158,9 +159,7 @@ class TerraMowLawnMowerEntity(LawnMowerEntity):
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
         return DeviceInfo(
-            identifiers={
-                ('TerraMowLanwMower', self.basic_data.host)
-            },
+            identifiers={('TerraMowLawnMower', self.basic_data.host)}, # Corrected typo in identifier
             name='TerraMow',
             manufacturer='TerraMow',
             model=self._device_model
@@ -253,6 +252,7 @@ class TerraMowLawnMowerEntity(LawnMowerEntity):
         self.register_callback(125, self.on_base_station_time)
         self.register_callback(126, self.on_blade_time)
         self.register_callback(138, self.on_schedule_data)
+        self.register_callback(108, self.on_battery_status)
         self.register_callback(COMPATIBILITY_INFO_DP, self.on_compatibility_info)
 
     def update_activity_from_state(self):
@@ -381,6 +381,16 @@ class TerraMowLawnMowerEntity(LawnMowerEntity):
             _LOGGER.info("Schedule data updated: %s", data)
         except json.JSONDecodeError:
             _LOGGER.error("Invalid JSON payload for dp_138: %s", payload)
+
+    async def on_battery_status(self, payload: str):
+        """Handle battery status updates (dp_108)."""
+        _LOGGER.debug("Raw battery status payload: %s", payload)
+        try:
+            data = json.loads(payload)
+            self._battery_status = data
+            _LOGGER.info("Battery status updated: %s", data)
+        except json.JSONDecodeError:
+            _LOGGER.error("Invalid JSON payload for dp_108: %s", payload)
 
     async def on_mission_status(self, payload: str):
         """Handle mission status updates."""
@@ -542,10 +552,11 @@ class TerraMowLawnMowerEntity(LawnMowerEntity):
             return
 
         # 调用对应的回调函数
-        callback = self.callbacks.get(dp_id)
-        if callback:
-            _LOGGER.debug("Calling callback for dp_id %d", dp_id)
-            self.hass.add_job(callback, payload)
+        callbacks = self.callbacks.get(dp_id)
+        if callbacks:
+            _LOGGER.debug("Calling %d callbacks for dp_id %d", len(callbacks), dp_id)
+            for callback in callbacks:
+                self.hass.add_job(callback, payload)
         else:
             _LOGGER.debug("No callback registered for dp_id: %d", dp_id)
 
@@ -553,7 +564,9 @@ class TerraMowLawnMowerEntity(LawnMowerEntity):
         """Register a callback function for a specific dp_id."""
         if not callable(callback):
             raise ValueError("Callback must be a callable function.")
-        self.callbacks[dp_id] = callback
+        if dp_id not in self.callbacks:
+            self.callbacks[dp_id] = []
+        self.callbacks[dp_id].append(callback)
         _LOGGER.info(f"Callback registered for dp_id: {dp_id}")
 
     def register_map_callback(self, callback: Callable):
@@ -587,7 +600,7 @@ class TerraMowLawnMowerEntity(LawnMowerEntity):
         """异步更新设备注册表中的模型信息."""
         try:
             device_registry = dr.async_get(self.hass)
-            device_identifier = ('TerraMowLanwMower', self.basic_data.host)
+            device_identifier = ('TerraMowLawnMower', self.basic_data.host)
             
             # 查找设备并更新模型信息
             device_entry = device_registry.async_get_device({device_identifier})
@@ -661,6 +674,11 @@ class TerraMowLawnMowerEntity(LawnMowerEntity):
     def schedule_data(self) -> dict:
         """Get schedule data from dp_138."""
         return self._schedule_data
+
+    @property
+    def battery_status(self) -> dict:
+        """Get current battery status from dp_108."""
+        return self._battery_status
 
     @property
     def compatibility_status(self) -> str:

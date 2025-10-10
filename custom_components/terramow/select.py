@@ -65,12 +65,10 @@ class TerraMowZoneSelect(SelectEntity):
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
         return DeviceInfo(
-            identifiers={
-                ('TerraMowLanwMower', self.basic_data.host)
-            },
+            identifiers={('TerraMowLawnMower', self.basic_data.host)}, # Corrected typo in identifier
             name='TerraMow',
             manufacturer='TerraMow',
-            model='TerraMow S1200'
+            model=self.basic_data.lawn_mower._device_model # Use dynamically updated model
         )
     
     @property
@@ -248,12 +246,10 @@ class MowSpeedSelect(SelectEntity):
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
         return DeviceInfo(
-            identifiers={
-                ('TerraMowLanwMower', self.basic_data.host)
-            },
+            identifiers={('TerraMowLawnMower', self.basic_data.host)}, # Corrected typo in identifier
             name='TerraMow',
             manufacturer='TerraMow',
-            model='TerraMow S1200'
+            model=self.basic_data.lawn_mower._device_model # Use dynamically updated model
         )
     
     @property
@@ -343,12 +339,10 @@ class BladeSpeedSelect(SelectEntity):
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
         return DeviceInfo(
-            identifiers={
-                ('TerraMowLanwMower', self.basic_data.host)
-            },
+            identifiers={('TerraMowLawnMower', self.basic_data.host)}, # Corrected typo in identifier
             name='TerraMow',
             manufacturer='TerraMow',
-            model='TerraMow S1200'
+            model=self.basic_data.lawn_mower._device_model # Use dynamically updated model
         )
     
     @property
@@ -452,12 +446,10 @@ class MainDirectionModeSelect(SelectEntity):
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
         return DeviceInfo(
-            identifiers={
-                ('TerraMowLanwMower', self.basic_data.host)
-            },
+            identifiers={('TerraMowLawnMower', self.basic_data.host)}, # Corrected typo in identifier
             name='TerraMow',
             manufacturer='TerraMow',
-            model='TerraMow S1200'
+            model=self.basic_data.lawn_mower._device_model # Use dynamically updated model
         )
     
     @property

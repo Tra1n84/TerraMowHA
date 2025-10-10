@@ -13,6 +13,7 @@ from homeassistant.const import (
     Platform,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 
 from .const import (
     DOMAIN, 
@@ -23,7 +24,7 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.LAWN_MOWER, Platform.SENSOR, Platform.SELECT, Platform.NUMBER]
+PLATFORMS: list[Platform] = [Platform.LAWN_MOWER, Platform.SENSOR, Platform.BINARY_SENSOR, Platform.SELECT, Platform.NUMBER]
 
 @dataclass
 class TerraMowBasicData:
@@ -32,7 +33,7 @@ class TerraMowBasicData:
     lawn_mower: Any = None
     compatibility_status: str = CompatibilityStatus.COMPATIBLE
     firmware_version: Optional[dict] = None
-    compatibility_reason: str = ""  # 存储兼容性检查失败的具体原因
+    compatibility_reason: str = ""  # Store the specific reason for compatibility check failure
     
     def check_version_compatibility(self, compatibility_info: dict) -> str:
         """Check version compatibility and return status."""
@@ -72,7 +73,7 @@ class TerraMowBasicData:
                 return CompatibilityStatus.DOWNGRADE_RECOMMENDED
             
             _LOGGER.info("Version compatibility check passed")
-            self.compatibility_reason = ""  # 清空失败原因
+            self.compatibility_reason = ""  # Clear the reason for failure
             return CompatibilityStatus.COMPATIBLE
             
         except Exception as e:
@@ -84,7 +85,7 @@ class TerraMowBasicData:
         if self.compatibility_status == CompatibilityStatus.COMPATIBLE:
             return "Version compatible, all functions working"
         elif self.compatibility_status == CompatibilityStatus.UPGRADE_REQUIRED:
-            # 根据具体原因给出不同提示
+            # Provide different prompts based on the specific reason
             if self.compatibility_reason.startswith("overall_version_low:"):
                 return f"Firmware overall version too low, please upgrade firmware to version {MIN_REQUIRED_OVERALL_VERSION} or higher"
             elif self.compatibility_reason.startswith("ha_version_low:"):
@@ -105,12 +106,35 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     host = entry.data[CONF_HOST]
     password = entry.data[CONF_PASSWORD]
 
+    # Automatic migration of the device identifier
+    device_registry = dr.async_get(hass)
+    old_identifier = ('TerraMowLanwMower', host)
+    new_identifier = ('TerraMowLawnMower', host)
+
+    # Search for the device with the old identifier
+    old_device_entry = device_registry.async_get_device({old_identifier})
+
+    if old_device_entry:
+        _LOGGER.info(
+            "Migrating device identifier from '%s' to '%s'",
+            "TerraMowLanwMower", "TerraMowLawnMower" # Corrected typo in identifier
+        )
+        # Check if a device with the new identifier already exists to avoid conflicts
+        new_device_entry = device_registry.async_get_device({new_identifier})
+        if new_device_entry:
+            _LOGGER.warning("Cannot migrate device, a device with the new identifier already exists. Please remove the old device manually.")
+        else:
+            device_registry.async_update_device(
+                old_device_entry.id, new_identifiers={new_identifier}
+            )
+    # End of Automatic migration
+
     _LOGGER.info("Setting up TerraMow with host %s", host)
     _LOGGER.debug("TerraMow entry data: %s", dict(entry.data))
 
     basic_data = TerraMowBasicData(host=host, password=password)
 
-    # 使用 hass.data 代替 entry.runtime_data
+    # Use hass.data instead of entry.runtime_data
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = basic_data
 
@@ -123,7 +147,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
-    # 如果卸载成功，清除数据
+    # If unloading is successful, clear the data
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id)
         if not hass.data[DOMAIN]:

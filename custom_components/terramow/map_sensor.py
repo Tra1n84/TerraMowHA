@@ -59,12 +59,10 @@ class TerraMowMapSensorBase(SensorEntity):
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
         return DeviceInfo(
-            identifiers={
-                ('TerraMowLanwMower', self.basic_data.host)
-            },
+            identifiers={('TerraMowLawnMower', self.basic_data.host)}, # Corrected typo in identifier
             name='TerraMow',
             manufacturer='TerraMow',
-            model='TerraMow S1200'
+            model=self.basic_data.lawn_mower._device_model # Use dynamically updated model
         )
     
     async def _on_map_info(self, map_info: dict[str, Any]) -> None:
@@ -96,12 +94,10 @@ class TerraMowMapStatusSensor(SensorEntity):
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
         return DeviceInfo(
-            identifiers={
-                ('TerraMowLanwMower', self.basic_data.host)
-            },
+            identifiers={('TerraMowLawnMower', self.basic_data.host)}, # Corrected typo in identifier
             name='TerraMow',
             manufacturer='TerraMow',
-            model='TerraMow S1200'
+            model=self.basic_data.lawn_mower._device_model # Use dynamically updated model
         )
     
     @property
@@ -226,4 +222,3 @@ class TerraMowCleanModeSensor(TerraMowMapSensorBase):
             attrs['selected_regions_count'] = len(region_ids)
         
         return attrs
-
