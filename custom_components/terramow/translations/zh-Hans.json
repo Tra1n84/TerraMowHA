@@ -100,7 +100,7 @@
         },
         "select": {
             "region_select": {
-                "name": "区域选择"
+                "name": "分区选择"
             },
             "mow_speed_setting": {
                 "name": "割草速度设置",
@@ -158,8 +158,8 @@
     },
     "state": {
         "unknown": "未知",
-        "no_regions_available": "无区域可选",
-        "all_regions": "全部区域",
+        "no_zones_available": "无分区可选",
+        "all_zones": "全部分区",
         "changing_mode": "正在切换模式",
         "active": "活跃",
         "pending": "等待确认"

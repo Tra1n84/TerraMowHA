@@ -23,7 +23,7 @@ async def async_setup_entry(
     
     # 创建选择实体
     entities = [
-        TerraMowRegionSelect(basic_data, hass),
+        TerraMowZoneSelect(basic_data, hass),
         MowSpeedSelect(basic_data, hass),
         BladeSpeedSelect(basic_data, hass),
         MainDirectionModeSelect(basic_data, hass),
@@ -31,12 +31,17 @@ async def async_setup_entry(
     
     async_add_entities(entities)
 
-class TerraMowRegionSelect(SelectEntity):
-    """地图区域选择器"""
+class TerraMowZoneSelect(SelectEntity):
+    """地图分区选择器 - Zone selector for mowing specific areas"""
     
     _attr_has_entity_name = True
     _attr_icon = "mdi:map-marker-multiple"
     _attr_entity_category = EntityCategory.CONFIG
+
+    # 注意: translation_key 保持使用 "region_select" 而不是 "zone_select"
+    # 原因: 为保持向后兼容性，避免改变 entity_id
+    # entity_id 格式: select.terramow_{host}_region_select
+    # 实际显示名称通过翻译文件控制，已改为 "Zone Select" / "分区选择"
     _attr_translation_key = "region_select"
     
     def __init__(
@@ -50,7 +55,7 @@ class TerraMowRegionSelect(SelectEntity):
         self.hass = hass
         self._map_info: dict[str, Any] = {}
         self._current_option: str | None = None
-        self._options = ["no_regions_available"]
+        self._options = ["no_zones_available"]
         
         # 注册地图信息回调
         if hasattr(basic_data, 'lawn_mower') and basic_data.lawn_mower:
@@ -71,6 +76,8 @@ class TerraMowRegionSelect(SelectEntity):
     @property
     def unique_id(self):
         """Return a unique ID for this entity."""
+        # 注意: unique_id 保持使用 "region_select" 以保持向后兼容性
+        # 这确保升级后 entity_id 不变，用户的自动化脚本无需修改
         return f"lawn_mower.terramow@{self.host}.region_select"
     
     
@@ -87,49 +94,49 @@ class TerraMowRegionSelect(SelectEntity):
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""
         if option not in self._options:
-            _LOGGER.warning("Invalid region option selected: %s", option)
+            _LOGGER.warning("Invalid zone option selected: %s", option)
             return
-        
-        if option == "no_regions_available" or option == "all_regions":
+
+        if option == "no_zones_available" or option == "all_zones":
             # 这些是特殊选项，不执行具体的区域切换操作
             self._current_option = option
             self.async_write_ha_state()
             return
         
-        # 解析区域ID
+        # 解析分区ID
         try:
-            # 格式: "区域名称 (ID: 123)"
+            # 格式: "分区名称 (ID: 123)"
             if " (ID: " in option:
-                region_id_str = option.split(" (ID: ")[1].rstrip(")")
-                region_id = int(region_id_str)
-                
+                zone_id_str = option.split(" (ID: ")[1].rstrip(")")
+                zone_id = int(zone_id_str)
+
                 # 发送选区作业命令
-                await self._start_region_clean(region_id)
+                await self._start_zone_clean(zone_id)
                 self._current_option = option
                 self.async_write_ha_state()
             else:
-                _LOGGER.warning("Unable to parse region ID from option: %s", option)
-                
+                _LOGGER.warning("Unable to parse zone ID from option: %s", option)
+
         except (ValueError, IndexError) as e:
-            _LOGGER.error("Error parsing region option %s: %s", option, e)
+            _LOGGER.error("Error parsing zone option %s: %s", option, e)
     
-    async def _start_region_clean(self, region_id: int):
+    async def _start_zone_clean(self, zone_id: int):
         """发送选区清洁命令"""
-        _LOGGER.info("Starting region clean for region ID: %d", region_id)
-        
+        _LOGGER.info("Starting zone clean for zone ID: %d", zone_id)
+
         # 获取lawn_mower实体以发送命令
         if hasattr(self.basic_data, 'lawn_mower') and self.basic_data.lawn_mower:
             command = {
                 'seq': self.basic_data.lawn_mower.get_cmd_seq(),
-                'mode': 'START_MODE_SELECT_REGION_CLEAN',
-                'select_region_clean': {
-                    'region_ids': [region_id]
+                'mode': 'START_MODE_SELECT_REGION_CLEAN',  # 设备协议字段，保持不变
+                'select_region_clean': {  # 设备协议字段，保持不变
+                    'region_ids': [zone_id]  # 设备协议字段名，保持不变
                 }
             }
             self.basic_data.lawn_mower.publish_data_point(103, command)
-            _LOGGER.info("Region clean command sent: region_id=%d", region_id)
+            _LOGGER.info("Zone clean command sent: zone_id=%d", zone_id)
         else:
-            _LOGGER.error("Cannot send region clean command: lawn_mower not available")
+            _LOGGER.error("Cannot send zone clean command: lawn_mower not available")
     
     async def _on_map_info(self, map_info: dict[str, Any]) -> None:
         """处理地图信息更新"""
@@ -138,76 +145,76 @@ class TerraMowRegionSelect(SelectEntity):
         self.async_write_ha_state()
     
     def _update_options(self) -> None:
-        """根据地图信息更新可选区域列表"""
+        """根据地图信息更新可选分区列表"""
         if not self._map_info:
-            self._options = ["no_regions_available"]
-            self._current_option = "no_regions_available"
+            self._options = ["no_zones_available"]
+            self._current_option = "no_zones_available"
             return
-        
-        regions = self._map_info.get('regions', [])
+
+        regions = self._map_info.get('regions', [])  # 设备协议字段名，保持不变
         if not regions:
-            self._options = ["no_regions_available"]
-            self._current_option = "no_regions_available"
+            self._options = ["no_zones_available"]
+            self._current_option = "no_zones_available"
             return
-        
-        # 构建区域选项列表 - 只添加子区域
-        options = ["all_regions"]  # 添加全部区域选项
-        
+
+        # 构建分区选项列表 - 只添加子分区
+        options = ["all_zones"]  # 添加全部分区选项
+
         for region in regions:
-            # 只处理子区域
-            sub_regions = region.get('sub_regions', [])
-            for sub_region in sub_regions:
-                sub_region_id = sub_region.get('id')
-                sub_region_name = sub_region.get('name', f'Sub-region {sub_region_id}')
-                
-                if sub_region_name and sub_region_name.strip():
-                    sub_option = f"{sub_region_name} (ID: {sub_region_id})"
+            # 只处理子分区（设备协议使用sub_regions字段名）
+            sub_regions = region.get('sub_regions', [])  # 设备协议字段名，保持不变
+            for sub_zone in sub_regions:
+                sub_zone_id = sub_zone.get('id')
+                sub_zone_name = sub_zone.get('name', f'Sub-zone {sub_zone_id}')
+
+                if sub_zone_name and sub_zone_name.strip():
+                    sub_option = f"{sub_zone_name} (ID: {sub_zone_id})"
                 else:
-                    sub_option = f"Sub-region {sub_region_id} (ID: {sub_region_id})"
+                    sub_option = f"Sub-zone {sub_zone_id} (ID: {sub_zone_id})"
                 options.append(sub_option)
-        
+
         self._options = options
-        
+
         # 设置当前选项
         if not self._current_option or self._current_option not in self._options:
-            self._current_option = "all_regions"
-        
-        _LOGGER.info("Updated region options: %d sub-regions available", len(self._options) - 1)
+            self._current_option = "all_zones"
+
+        _LOGGER.info("Updated zone options: %d sub-zones available", len(self._options) - 1)
     
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return entity specific state attributes."""
         if not self._map_info:
             return {}
-        
-        regions = self._map_info.get('regions', [])
-        
-        # 统计所有子区域
-        all_sub_regions = []
+
+        regions = self._map_info.get('regions', [])  # 设备协议字段名，保持不变
+
+        # 统计所有子分区
+        all_sub_zones = []
         for region in regions:
-            sub_regions = region.get('sub_regions', [])
-            for sub_region in sub_regions:
-                sub_region_info = {
-                    'id': sub_region.get('id'),
-                    'name': sub_region.get('name', ''),
-                    'parent_region_id': region.get('id'),
+            sub_regions = region.get('sub_regions', [])  # 设备协议字段名，保持不变
+            for sub_zone in sub_regions:
+                sub_zone_info = {
+                    'id': sub_zone.get('id'),
+                    'name': sub_zone.get('name', ''),
+                    'parent_region_id': region.get('id'),  # 设备协议字段名，保持不变
                     'parent_region_name': region.get('name', '')
                 }
-                all_sub_regions.append(sub_region_info)
-        
+                all_sub_zones.append(sub_zone_info)
+
         attrs = {
             'map_id': self._map_info.get('id'),
-            'sub_regions_count': len(all_sub_regions),
-            'available_sub_regions': all_sub_regions
+            'sub_zones_count': len(all_sub_zones),
+            'available_sub_zones': all_sub_zones
         }
-        
+
         # 显示当前清洁信息
         clean_info = self._map_info.get('clean_info', {})
-        if clean_info.get('mode') == 'MAP_CLEAN_INFO_MODE_SELECT_REGION':
-            select_region = clean_info.get('select_region', {})
-            selected_region_ids = select_region.get('region_id', [])
-            attrs['currently_selected_regions'] = selected_region_ids
-        
+        if clean_info.get('mode') == 'MAP_CLEAN_INFO_MODE_SELECT_REGION':  # 设备协议常量，保持不变
+            select_region = clean_info.get('select_region', {})  # 设备协议字段名，保持不变
+            selected_zone_ids = select_region.get('region_id', [])  # 设备协议字段名，保持不变
+            attrs['currently_selected_zones'] = selected_zone_ids
+
         return attrs
 
 

@@ -100,7 +100,7 @@
         },
         "select": {
             "region_select": {
-                "name": "Region Select"
+                "name": "Zone Select"
             },
             "mow_speed_setting": {
                 "name": "Mow Speed Setting",
@@ -158,8 +158,8 @@
     },
     "state": {
         "unknown": "Unknown",
-        "no_regions_available": "No regions available",
-        "all_regions": "All regions",
+        "no_zones_available": "No zones available",
+        "all_zones": "All zones",
         "changing_mode": "Changing Mode",
         "active": "Active",
         "pending": "Pending Confirmation"
