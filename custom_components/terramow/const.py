@@ -26,3 +26,10 @@ class CompatibilityStatus:
 
 # 版本兼容性信息获取的数据点ID
 COMPATIBILITY_INFO_DP = 127
+
+# 维护周期常量 (单位: 分钟)
+# 刀盘推荐清洁周期: 240小时 = 240 * 60 = 14400分钟
+BLADE_MAINTENANCE_CYCLE_MINUTES = 14400
+
+# 基站推荐清洁周期: 30天 = 30 * 24 * 60 = 43200分钟
+BASE_STATION_MAINTENANCE_CYCLE_MINUTES = 43200

@@ -25,6 +25,10 @@ from enum import StrEnum
 from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from . import TerraMowBasicData, DOMAIN
+from .const import (
+    BLADE_MAINTENANCE_CYCLE_MINUTES,
+    BASE_STATION_MAINTENANCE_CYCLE_MINUTES,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -351,10 +355,10 @@ class RemainingBladeTimeSensor(SensorEntity):
         blade_time = self.basic_data.lawn_mower.blade_time
         if not blade_time:
             return None
-        
+
         used_time = blade_time.get('int_value', 0)
-        # 刀盘推荐清洁周期为240分钟
-        remaining_time = 240 - used_time
+        # 刀盘推荐清洁周期为240小时,即14400分钟
+        remaining_time = BLADE_MAINTENANCE_CYCLE_MINUTES - used_time
         return max(0, remaining_time)
     
     @property
@@ -366,12 +370,13 @@ class RemainingBladeTimeSensor(SensorEntity):
         blade_time = self.basic_data.lawn_mower.blade_time
         if not blade_time:
             return {}
-        
+
         used_time = blade_time.get('int_value', 0)
         return {
             'used_time': used_time,
-            'recommended_cycle': 240,
-            'needs_maintenance': used_time >= 240
+            'recommended_cycle': BLADE_MAINTENANCE_CYCLE_MINUTES,
+            'recommended_cycle_hours': BLADE_MAINTENANCE_CYCLE_MINUTES // 60,
+            'needs_maintenance': used_time >= BLADE_MAINTENANCE_CYCLE_MINUTES
         }
 
 
@@ -425,7 +430,7 @@ class RemainingBaseStationTimeSensor(SensorEntity):
         
         used_time = base_station_time.get('int_value', 0)
         # 基站推荐清洁周期为30天，即43200分钟
-        remaining_time = 43200 - used_time
+        remaining_time = BASE_STATION_MAINTENANCE_CYCLE_MINUTES - used_time
         return max(0, remaining_time)
     
     @property
@@ -441,9 +446,9 @@ class RemainingBaseStationTimeSensor(SensorEntity):
         used_time = base_station_time.get('int_value', 0)
         return {
             'used_time': used_time,
-            'recommended_cycle': 43200,  # 30 days in minutes
-            'recommended_cycle_days': 30,
-            'needs_maintenance': used_time >= 43200
+            'recommended_cycle': BASE_STATION_MAINTENANCE_CYCLE_MINUTES,  # 30 days in minutes
+            'recommended_cycle_days': BASE_STATION_MAINTENANCE_CYCLE_MINUTES // (60 * 24),
+            'needs_maintenance': used_time >= BASE_STATION_MAINTENANCE_CYCLE_MINUTES
         }
 
 
